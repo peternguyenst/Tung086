@@ -75,6 +75,16 @@ button{
     color:white;
 }
 
+.warn{
+    background:#ff9500;
+    color:white;
+}
+
+.warn2{
+    background:#5856d6;
+    color:white;
+}
+
 .row{
     display:flex;
     gap:8px;
@@ -408,27 +418,58 @@ function callNumber(phone,index){
 
 }
 
-function sendSMS(phone,name,code,amount,index){
+function sendSMS(phone,name,code,amount,index,extra,label){
 
     const item = phoneData[index];
 
-    const msgText =
+    let msgText =
         'Kính gửi '+(name||'')+
         ' - '+(code||'')+
         ', vui lòng thanh toán tiền điện. Số tiền: '+formatAmount(amount);
+
+    if(extra){
+        msgText += '. ' + extra;
+    }
 
     const msg = encodeURIComponent(msgText);
 
     item.smsSent = true;
     item.smsTime = new Date().toLocaleString('vi-VN');
 
-    appendHistory(index,'💬 Đã bấm SMS - '+formatAmount(amount)+'đ');
+    appendHistory(index,(label||'💬 Đã bấm SMS')+' - '+formatAmount(amount)+'đ');
 
     saveCustomer(index);
     localStorage.setItem('phoneData',JSON.stringify(phoneData));
     renderList();
 
-    window.location.href = `sms:${phone}&body=${msg}`;
+    // Android uses '?body=', iOS uses '&body='
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const sep = isAndroid ? '?' : '&';
+    window.location.href = `sms:${phone}${sep}body=${msg}`;
+
+}
+
+function sendReminder1(index){
+
+    const it = phoneData[index];
+
+    sendSMS(
+        it.phone, it.customerName, it.customerCode, it.amount, index,
+        'thời gian nộp tiền điện từ ngày 02-07 sau ngày 10 bên điện lực tiến hành cắt điện',
+        '🔔 Tin nhắc 1'
+    );
+
+}
+
+function sendReminder2(index){
+
+    const it = phoneData[index];
+
+    sendSMS(
+        it.phone, it.customerName, it.customerCode, it.amount, index,
+        'thời gian mai 9h sáng bên em phải đi cắt điện rồi a.',
+        '🔔 Tin nhắc 2'
+    );
 
 }
 
@@ -613,6 +654,16 @@ function renderList(){
         <button class="success"
         onclick="sendSMS('${item.phone}','${escapeAttr(item.customerName)}','${escapeAttr(item.customerCode)}','${escapeAttr(item.amount)}',${realIndex})">
         💬 SMS
+        </button>
+
+        <button class="warn"
+        onclick="sendReminder1(${realIndex})">
+        🔔 Tin nhắc 1
+        </button>
+
+        <button class="warn2"
+        onclick="sendReminder2(${realIndex})">
+        🔔 Tin nhắc 2
         </button>
 
         <button class="danger"

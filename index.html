@@ -248,6 +248,7 @@ function saveCustomer(index){
         {
             phone: item.phone||'',
             customerCode: item.customerCode||'',
+            maTram: item.maTram||'',
             customerName: item.customerName||'',
             address: item.address||'',
             amount: String(item.amount||'0'),
@@ -353,6 +354,9 @@ function importExcel(event){
             const customerCode =
             row.MA_KHTT || row.MA_KH || row.MAKH || '';
 
+            const maTram =
+            row.MA_TRAM || row.MATRAM || '';
+
             const customerName =
             row.TEN_KHTT || row.TEN_KH || '';
 
@@ -375,6 +379,7 @@ function importExcel(event){
                 phoneData.push({
                     phone: normalized,
                     customerCode,
+                    maTram,
                     customerName,
                     address,
                     amount,
@@ -598,7 +603,7 @@ function renderList(){
         </div>
 
         <div class="info-box">
-        🆔 <b>${escapeHtml(item.customerCode)}</b>
+        🆔 <b>${escapeHtml(item.customerCode)}${item.maTram ? ' - ' + escapeHtml(item.maTram) : ''}</b>
         </div>
 
         <div class="info-box">
@@ -724,6 +729,7 @@ if(window.db){
                         data: {
                             phone: item.phone||'',
                             customerCode: item.customerCode||'',
+                            maTram: item.maTram||'',
                             customerName: item.customerName||'',
                             address: item.address||'',
                             amount: String(item.amount||'0'),
@@ -760,6 +766,7 @@ if(window.db){
                     return {
                         phone: d.phone||'',
                         customerCode: d.customerCode||'',
+                        maTram: d.maTram||'',
                         customerName: d.customerName||'',
                         address: d.address||'',
                         amount: d.amount||'0',

@@ -88,6 +88,26 @@ button{
     color:white;
 }
 
+.zalo{
+    background:#0068ff;
+    color:white;
+}
+
+.zalo2{
+    background:#3d8bff;
+    color:white;
+}
+
+.zalo3{
+    background:#0047b3;
+    color:white;
+}
+
+.zalo4{
+    background:#e8f1ff;
+    color:#0047b3;
+}
+
 .row{
     display:flex;
     gap:8px;
@@ -426,9 +446,13 @@ function callNumber(phone,index){
 
 }
 
-function sendSMS(phone,name,code,amount,index,extra,label){
+const REMINDER1_TEXT =
+'THỜI GIAN NỘP TIỀN ĐIỆN TỪ NGÀY MÙNG 3 ĐẦU THÁNG ĐẾN NGÀY MÙNG 10 HÀNG THÁNG. SAU NGÀY 10, BÊN ĐIỆN LỰC SẼ TIẾN HÀNH CẮT ĐIỆN. NẾU CÓ SAI SỐ ĐIỆN THOẠI HOẶC QUÝ KHÁCH ĐÃ NỘP TIỀN RỒI, XIN QUÝ KHÁCH VUI LÒNG BỎ QUA THÔNG BÁO NÀY. EM XIN CẢM ƠN NHIỀU Ạ.';
 
-    const item = phoneData[index];
+const REMINDER2_TEXT =
+'THỜI GIAN 9H SÁNG MAI BÊN EM PHẢI ĐI CẮT ĐIỆN RỒI Ạ. NẾU QUÝ KHÁCH ĐÃ NỘP TIỀN RỒI HOẶC SAI SỐ ĐIỆN THOẠI, XIN QUÝ KHÁCH VUI LÒNG BỎ QUA Ạ. EM XIN CẢM ƠN NHIỀU.';
+
+function buildMessage(name,code,amount,extra){
 
     let msgText =
         'Kính gửi '+(name||'')+
@@ -438,6 +462,39 @@ function sendSMS(phone,name,code,amount,index,extra,label){
     if(extra){
         msgText += '. ' + extra;
     }
+
+    return msgText;
+
+}
+
+function copyText(text){
+
+    // Sync fallback first so the copy stays inside the user gesture
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly','');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+
+    try{ document.execCommand('copy'); }catch(e){}
+
+    document.body.removeChild(ta);
+
+    if(navigator.clipboard && window.isSecureContext){
+        navigator.clipboard.writeText(text).catch(()=>{});
+    }
+
+}
+
+function sendSMS(phone,name,code,amount,index,extra,label){
+
+    const item = phoneData[index];
+
+    const msgText = buildMessage(name,code,amount,extra);
 
     const msg = encodeURIComponent(msgText);
 
@@ -457,13 +514,123 @@ function sendSMS(phone,name,code,amount,index,extra,label){
 
 }
 
+function isAndroidUA(){
+    return /android/i.test(navigator.userAgent);
+}
+
+// Opens Zalo with the message already filled in. Zalo has no deep link
+// that takes both a number and a body, so these routes let Zalo pick the
+// recipient; openZaloChat() below is the number-targeted alternative.
+function zaloShareText(text, phone){
+
+    // Copy first, inside the user gesture: every route may still need a paste.
+    copyText(text);
+
+    const chatUrl = 'https://zalo.me/'+encodeURIComponent(phone);
+
+    if(isAndroidUA()){
+
+        // Zalo's own share picker, text pre-filled.
+        window.location.href =
+            'intent://send#Intent;' +
+            'scheme=zalo;' +
+            'package=com.zing.zalo;' +
+            'action=android.intent.action.SEND;' +
+            'type=text/plain;' +
+            'S.android.intent.extra.TEXT=' + encodeURIComponent(text) + ';' +
+            'S.browser_fallback_url=' + encodeURIComponent(chatUrl) + ';' +
+            'end';
+
+        return;
+
+    }
+
+    // iOS (and any other browser with Web Share): the OS share sheet,
+    // where Zalo appears via its share extension, text pre-filled.
+    if(navigator.share){
+
+        navigator.share({ text: text }).catch(()=>{});
+        return;
+
+    }
+
+    alert('Đã copy nội dung tin nhắn.\nMở Zalo rồi dán (paste) vào khung chat.');
+    window.location.href = chatUrl;
+
+}
+
+function markZaloSent(index, amount, label){
+
+    const item = phoneData[index];
+
+    item.smsSent = true;
+    item.smsTime = new Date().toLocaleString('vi-VN');
+
+    appendHistory(index,(label||'🟦 Đã bấm ZALO')+' - '+formatAmount(amount)+'đ');
+
+    saveCustomer(index);
+    localStorage.setItem('phoneData',JSON.stringify(phoneData));
+    renderList();
+
+}
+
+function sendZalo(phone,name,code,amount,index,extra,label){
+
+    const msgText = buildMessage(name,code,amount,extra);
+
+    markZaloSent(index, amount, label);
+
+    zaloShareText(msgText, phone);
+
+}
+
+// Number-targeted route: opens that customer's chat even when they are not
+// a Zalo friend, but the message has to be pasted.
+function openZaloChat(phone,name,code,amount,index){
+
+    const msgText = buildMessage(name, code, amount);
+
+    copyText(msgText);
+
+    markZaloSent(index, amount, '🟦 Mở chat Zalo');
+
+    alert('Đã copy nội dung tin nhắn.\nMở Zalo rồi dán (paste) vào khung chat.');
+
+    window.location.href = 'https://zalo.me/'+encodeURIComponent(phone);
+
+}
+
+function sendZaloReminder1(index){
+
+    const it = phoneData[index];
+
+    sendZalo(
+        it.phone, it.customerName, it.customerCode, it.amount, index,
+        REMINDER1_TEXT,
+        '🟦 Zalo nhắc 1'
+    );
+
+}
+
+function sendZaloReminder2(index){
+
+    const it = phoneData[index];
+
+    sendZalo(
+        it.phone, it.customerName, it.customerCode, it.amount, index,
+        REMINDER2_TEXT,
+        '🟦 Zalo nhắc 2'
+    );
+
+}
+
 function sendReminder1(index){
 
     const it = phoneData[index];
 
     sendSMS(
         it.phone, it.customerName, it.customerCode, it.amount, index,
-        'THỜI GIAN NỘP TIỀN ĐIỆN TỪ NGÀY MÙNG 3 ĐẦU THÁNG ĐẾN NGÀY MÙNG 10 HÀNG THÁNG. SAU NGÀY 10, BÊN ĐIỆN LỰC SẼ TIẾN HÀNH CẮT ĐIỆN. NẾU CÓ SAI SỐ ĐIỆN THOẠI HOẶC QUÝ KHÁCH ĐÃ NỘP TIỀN RỒI, XIN QUÝ KHÁCH VUI LÒNG BỎ QUA THÔNG BÁO NÀY. EM XIN CẢM ƠN NHIỀU Ạ.',
+        REMINDER1_TEXT,
         '🔔 Tin nhắc 1'
     );
 
@@ -475,7 +642,7 @@ function sendReminder2(index){
 
     sendSMS(
         it.phone, it.customerName, it.customerCode, it.amount, index,
-        'THỜI GIAN 9H SÁNG MAI BÊN EM PHẢI ĐI CẮT ĐIỆN RỒI Ạ. NẾU QUÝ KHÁCH ĐÃ NỘP TIỀN RỒI HOẶC SAI SỐ ĐIỆN THOẠI, XIN QUÝ KHÁCH VUI LÒNG BỎ QUA Ạ. EM XIN CẢM ƠN NHIỀU.',
+        REMINDER2_TEXT,
         '🔔 Tin nhắc 2'
     );
 
@@ -677,6 +844,30 @@ function renderList(){
         <button class="danger"
         onclick="deletePhone(${realIndex})">
         🗑 Xóa
+        </button>
+
+        </div>
+
+        <div class="row">
+
+        <button class="zalo"
+        onclick="sendZalo('${item.phone}','${escapeAttr(item.customerName)}','${escapeAttr(item.customerCode)}','${escapeAttr(item.amount)}',${realIndex})">
+        🟦 Zalo
+        </button>
+
+        <button class="zalo2"
+        onclick="sendZaloReminder1(${realIndex})">
+        🟦 Zalo nhắc 1
+        </button>
+
+        <button class="zalo3"
+        onclick="sendZaloReminder2(${realIndex})">
+        🟦 Zalo nhắc 2
+        </button>
+
+        <button class="zalo4"
+        onclick="openZaloChat('${item.phone}','${escapeAttr(item.customerName)}','${escapeAttr(item.customerCode)}','${escapeAttr(item.amount)}',${realIndex})">
+        🟦 Mở chat
         </button>
 
         </div>

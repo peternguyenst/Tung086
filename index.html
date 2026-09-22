@@ -103,11 +103,6 @@ button{
     color:white;
 }
 
-.zalo4{
-    background:#e8f1ff;
-    color:#0047b3;
-}
-
 .row{
     display:flex;
     gap:8px;
@@ -469,21 +464,30 @@ function buildMessage(name,code,amount,extra){
 
 function copyText(text){
 
-    // Sync fallback first so the copy stays inside the user gesture
+    // iOS refuses to select a readonly textarea, so keep it editable and
+    // select through a Range. execCommand stays inside the user gesture.
     const ta = document.createElement('textarea');
     ta.value = text;
-    ta.setAttribute('readonly','');
+    ta.contentEditable = 'true';
     ta.style.position = 'fixed';
     ta.style.top = '0';
     ta.style.opacity = '0';
     document.body.appendChild(ta);
-    ta.select();
+
+    const range = document.createRange();
+    range.selectNodeContents(ta);
+
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
     ta.setSelectionRange(0, text.length);
 
     try{ document.execCommand('copy'); }catch(e){}
 
     document.body.removeChild(ta);
 
+    // Async and best-effort: it consumes the tap's user activation on iOS,
+    // so nothing that needs activation may run after this.
     if(navigator.clipboard && window.isSecureContext){
         navigator.clipboard.writeText(text).catch(()=>{});
     }
@@ -514,51 +518,6 @@ function sendSMS(phone,name,code,amount,index,extra,label){
 
 }
 
-function isAndroidUA(){
-    return /android/i.test(navigator.userAgent);
-}
-
-// Opens Zalo with the message already filled in. Zalo has no deep link
-// that takes both a number and a body, so these routes let Zalo pick the
-// recipient; openZaloChat() below is the number-targeted alternative.
-function zaloShareText(text, phone){
-
-    // Copy first, inside the user gesture: every route may still need a paste.
-    copyText(text);
-
-    const chatUrl = 'https://zalo.me/'+encodeURIComponent(phone);
-
-    if(isAndroidUA()){
-
-        // Zalo's own share picker, text pre-filled.
-        window.location.href =
-            'intent://send#Intent;' +
-            'scheme=zalo;' +
-            'package=com.zing.zalo;' +
-            'action=android.intent.action.SEND;' +
-            'type=text/plain;' +
-            'S.android.intent.extra.TEXT=' + encodeURIComponent(text) + ';' +
-            'S.browser_fallback_url=' + encodeURIComponent(chatUrl) + ';' +
-            'end';
-
-        return;
-
-    }
-
-    // iOS (and any other browser with Web Share): the OS share sheet,
-    // where Zalo appears via its share extension, text pre-filled.
-    if(navigator.share){
-
-        navigator.share({ text: text }).catch(()=>{});
-        return;
-
-    }
-
-    alert('Đã copy nội dung tin nhắn.\nMở Zalo rồi dán (paste) vào khung chat.');
-    window.location.href = chatUrl;
-
-}
-
 function markZaloSent(index, amount, label){
 
     const item = phoneData[index];
@@ -574,25 +533,16 @@ function markZaloSent(index, amount, label){
 
 }
 
+// Zalo has no deep link carrying both a number and a message body, and the
+// share-sheet route cannot target a number at all. So: copy the text, then
+// open that customer's chat by number and let the user paste.
 function sendZalo(phone,name,code,amount,index,extra,label){
 
     const msgText = buildMessage(name,code,amount,extra);
 
-    markZaloSent(index, amount, label);
-
-    zaloShareText(msgText, phone);
-
-}
-
-// Number-targeted route: opens that customer's chat even when they are not
-// a Zalo friend, but the message has to be pasted.
-function openZaloChat(phone,name,code,amount,index){
-
-    const msgText = buildMessage(name, code, amount);
-
     copyText(msgText);
 
-    markZaloSent(index, amount, '🟦 Mở chat Zalo');
+    markZaloSent(index, amount, label);
 
     alert('Đã copy nội dung tin nhắn.\nMở Zalo rồi dán (paste) vào khung chat.');
 
@@ -863,11 +813,6 @@ function renderList(){
         <button class="zalo3"
         onclick="sendZaloReminder2(${realIndex})">
         🟦 Zalo nhắc 2
-        </button>
-
-        <button class="zalo4"
-        onclick="openZaloChat('${item.phone}','${escapeAttr(item.customerName)}','${escapeAttr(item.customerCode)}','${escapeAttr(item.amount)}',${realIndex})">
-        🟦 Mở chat
         </button>
 
         </div>
